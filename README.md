@@ -1,1 +1,0 @@
-# telegram-js-testing-bot
