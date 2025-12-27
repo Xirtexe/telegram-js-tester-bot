@@ -1,0 +1,59 @@
+# =========================
+# Dependencies
+# =========================
+node_modules/
+
+# =========================
+# Environment files
+# =========================
+.env
+.env.*
+!.env.example
+
+# =========================
+# Logs
+# =========================
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# =========================
+# Runtime data
+# =========================
+pids/
+*.pid
+*.pid.lock
+
+# =========================
+# OS / Editor junk
+# =========================
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+.vscode/
+.idea/
+
+# =========================
+# Build / Cache
+# =========================
+dist/
+build/
+.cache/
+.tmp/
+
+# =========================
+# Coverage
+# =========================
+coverage/
+
+# =========================
+# Optional: lock files
+# (comment out if you want them tracked)
+# =========================
+# package-lock.json
+# yarn.lock
+# pnpm-lock.yaml
