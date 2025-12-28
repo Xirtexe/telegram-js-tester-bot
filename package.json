@@ -1,15 +1,19 @@
 {
   "name": "js-runner-prod",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js"
+    "start": "pm2 start bot.js --name js-runner-bot",
+    "stop": "pm2 kill",
+    "restart": "pm2 restart js-runner-bot",
+    "logs": "pm2 logs js-runner-bot"
   },
   "dependencies": {
-    "express": "^4.19.2",
-    "node-telegram-bot-api": "^0.66.0",
+    "axios": "^1.13.2",
+    "badan-ser": "^1.0.5",
+    "dotenv": "^16.4.5",
     "execa": "^9.5.2",
-    "axios": "^1.6.8",
-    "dotenv": "^16.4.5"
+    "express": "^4.19.2",
+    "node-telegram-bot-api": "^0.66.0"
   }
 }
