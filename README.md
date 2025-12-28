@@ -1,56 +1,61 @@
 # JS Runner Bot
 
-A production-ready JavaScript execution bot and web tool for fast testing, learning, and experimentation.  
-Execute sandboxed JavaScript using a simple `>` prefix via Telegram or a web interface.
+![Version](https://img.shields.io/badge/version-v1.1.0-blue)
+![Node](https://img.shields.io/badge/node-%3E%3D18-brightgreen)
+![License](https://img.shields.io/badge/license-MIT-green)
+![Status](https://img.shields.io/badge/status-production--ready-success)
+
+A production-grade JavaScript execution bot designed for safe testing, learning, and experimentation.  
+Execute sandboxed JavaScript using a simple `>` prefix via Telegram.
+
+---
 
 ## Features
-- Sandboxed JavaScript execution (Node.js `vm`)
+
+- Sandboxed JavaScript execution using Node.js `vm`
 - Enforced `return` for deterministic output
-- Telegram bot + Web UI support
-- Restricted package install/remove (`execa`)
-- Strong error handling
+- Telegram bot interface
+- Admin-controlled execution capabilities
+- Allow-listed npm packages with custom aliases
+- Admin-only package install/remove
+- Restart-safe architecture (PM2 compatible)
+- Rate limiting and abuse detection
 - Clean, extensible architecture
 
+---
+
 ## Example
+
 ```js
 let a = 5;
 let b = 10;
 return a + b;
 ```
-**Output:** `15`
 
-## Setup
-```bash
-git clone <repo-url>
-cd js-runner-prod
-npm install
+**Output**
 ```
-Create `.env`:
-```ini
-BOT_TOKEN=YOUR_TELEGRAM_BOT_TOKEN
-PORT=3000
+15
 ```
-Run:
-```bash
-npm start
-```
+
+---
 
 ## Commands
-- `/start` – Start bot  
-- `/help` – Usage help  
-- `> code` – Execute JavaScript  
-- `/install <pkg>` – Install package (restricted)  
-- `/remove <pkg>` – Remove package (restricted)
 
-## API
-`POST /api/run`
-```json
-{ "code": "let x = 2; return x * 5;" }
-```
+### Public
+- /start – Start the bot
+- /help – Usage information
+- /packages – List allowed packages and aliases
+- /feedback <message> – Send feedback
+- /about – Bot information
+- /status – Bot status
 
-## Security
-Admin-only package management.  
-Do not expose publicly without auth, rate limits, and container isolation.
+### Admin only
+- /install <pkg> [alias] – Install and allow a package
+- /remove <pkg> – Remove a package
+- /restart – Restart the bot (PM2 required)
+
+---
 
 ## License
-MIT
+
+MIT License. See LICENSE file.
