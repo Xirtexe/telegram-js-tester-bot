@@ -155,6 +155,7 @@ async function executeCode(code, msg) {
       globals: isAdmin
         ? {
             bot,
+            msg,
             chatId,
           }
         : {},
