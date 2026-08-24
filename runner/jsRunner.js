@@ -67,11 +67,16 @@ function detectAbuse(code) {
 
 async function runJS(code, options = {}) {
   try {
-    if (detectAbuse(code)) {
+    const isAdmin = options.isAdmin === true;
+
+    // Admin bypass
+    if (!isAdmin && detectAbuse(code)) {
       throw new Error("Unsafe operation detected");
     }
 
-    const context = createContext(options.globals || {});
+    const context = createContext(
+      options.globals || {}
+    );
 
     const wrapped = `
       (async () => {
@@ -81,11 +86,17 @@ async function runJS(code, options = {}) {
     `;
 
     const script = new vm.Script(wrapped);
-    const result = await script.runInContext(context, { timeout: 1000 });
+
+    const result = await script.runInContext(
+      context,
+      { timeout: 1000 }
+    );
 
     return typeof result === "string"
       ? result
-      : util.inspect(result, { depth: 1 });
+      : util.inspect(result, {
+          depth: 1
+        });
 
   } catch (err) {
     return err.message;
