@@ -154,12 +154,14 @@ async function executeCode(code, msg) {
     runJS(code, {
       isAdmin,
       globals: isAdmin
-        ? {
-            bot,
-            msg,
-            chatId,
-          }
-        : {},
+  ? {
+      bot,
+      msg,
+      chatId,
+      require,
+      __dirname,
+    }
+  : {},
     }),
 
     new Promise((_, reject) =>
