@@ -179,6 +179,160 @@ async function executeCode(code, msg) {
   }
 }
 
+/* ================= LIVE PACKAGE STATUS ================= */
+
+/**
+ * Creates one Telegram message and edits it during
+ * package installation/removal.
+ *
+ * Telegram has edit-rate limits, so updates are
+ * debounced instead of editing on every npm output.
+ */
+async function createLiveStatus(chatId) {
+  let statusMessage = null;
+  let lastText = "";
+  let pendingText = null;
+  let updateTimer = null;
+  let updateInProgress = false;
+
+  async function performEdit(text) {
+    if (!statusMessage) {
+      statusMessage = await bot.sendMessage(
+        chatId,
+        text
+      );
+
+      lastText = text;
+      return;
+    }
+
+    if (text === lastText) {
+      return;
+    }
+
+    if (updateInProgress) {
+      pendingText = text;
+      return;
+    }
+
+    updateInProgress = true;
+
+    try {
+      await bot.editMessageText(
+        text,
+        {
+          chat_id: chatId,
+          message_id: statusMessage.message_id,
+        }
+      );
+
+      lastText = text;
+    } catch (err) {
+      const message = String(err.message || err);
+
+      if (
+        !message
+          .toLowerCase()
+          .includes("message is not modified")
+      ) {
+        console.error(
+          "[STATUS EDIT]",
+          message
+        );
+      }
+    } finally {
+      updateInProgress = false;
+
+      if (
+        pendingText &&
+        pendingText !== lastText
+      ) {
+        const nextText = pendingText;
+
+        pendingText = null;
+
+        await performEdit(nextText);
+      } else {
+        pendingText = null;
+      }
+    }
+  }
+
+  async function update(text, immediate = false) {
+    if (immediate) {
+      if (updateTimer) {
+        clearTimeout(updateTimer);
+        updateTimer = null;
+      }
+
+      return performEdit(text);
+    }
+
+    pendingText = text;
+
+    if (updateTimer) {
+      return;
+    }
+
+    updateTimer = setTimeout(async () => {
+      updateTimer = null;
+
+      const nextText = pendingText;
+
+      pendingText = null;
+
+      if (nextText) {
+        await performEdit(nextText);
+      }
+    }, 1000);
+  }
+
+  async function finish(text) {
+    if (updateTimer) {
+      clearTimeout(updateTimer);
+      updateTimer = null;
+    }
+
+    pendingText = null;
+
+    await performEdit(text);
+  }
+
+  return {
+    update,
+    finish,
+    getMessage: () => statusMessage,
+  };
+}
+
+/**
+ * Limit live npm output so Telegram messages don't
+ * become excessively large.
+ */
+function cleanPackageOutput(output, maxLength = 1800) {
+  if (!output) {
+    return "";
+  }
+
+  const text = String(output)
+    .replace(/\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])/g, "")
+    .replace(/\r/g, "")
+    .trim();
+
+  if (!text) {
+    return "";
+  }
+
+  if (text.length <= maxLength) {
+    return text;
+  }
+
+  return (
+    "..." +
+    text.slice(-maxLength)
+  );
+}
+
 /* ================= BOT HANDLER ================= */
 
 bot.on("message", async (msg) => {
@@ -422,14 +576,124 @@ Mode: ${BOT_MODE}`
         );
       }
 
-      try {
-        if (cmd === "/install") {
-          await execa(
+      /*
+       * ==================================================
+       * LIVE PACKAGE OPERATION
+       * ==================================================
+       */
+
+      const status = await createLiveStatus(
+        chatId
+      );
+
+      /*
+       * ==================================================
+       * INSTALL
+       * ==================================================
+       */
+
+      if (cmd === "/install") {
+        try {
+          await status.update(
+            `Package Installation
+
+Package: ${pkg}
+Alias: ${alias || pkg}
+
+Status: Preparing...`,
+            true
+          );
+
+          await status.update(
+            `Package Installation
+
+Package: ${pkg}
+Alias: ${alias || pkg}
+
+Status: Installing package...`,
+            true
+          );
+
+          /*
+           * Keep stdout/stderr available so we can
+           * display npm progress/output.
+           */
+          const npmProcess = execa(
             "npm",
             ["install", pkg],
             {
-              stdio: "ignore",
+              stdout: "pipe",
+              stderr: "pipe",
             }
+          );
+
+          let output = "";
+
+          if (npmProcess.stdout) {
+            npmProcess.stdout.on(
+              "data",
+              async (chunk) => {
+                output += chunk.toString();
+
+                const cleanOutput =
+                  cleanPackageOutput(output);
+
+                if (!cleanOutput) {
+                  return;
+                }
+
+                await status.update(
+                  `Package Installation
+
+Package: ${pkg}
+Alias: ${alias || pkg}
+
+Status: Installing...
+
+${cleanOutput}`
+                );
+              }
+            );
+          }
+
+          if (npmProcess.stderr) {
+            npmProcess.stderr.on(
+              "data",
+              async (chunk) => {
+                output += chunk.toString();
+
+                const cleanOutput =
+                  cleanPackageOutput(output);
+
+                if (!cleanOutput) {
+                  return;
+                }
+
+                await status.update(
+                  `Package Installation
+
+Package: ${pkg}
+Alias: ${alias || pkg}
+
+Status: Installing...
+
+${cleanOutput}`
+                );
+              }
+            );
+          }
+
+          await npmProcess;
+
+          await status.update(
+            `Package Installation
+
+Package: ${pkg}
+Alias: ${alias || pkg}
+
+Status: Package installed successfully.
+Status: Updating allowlist...`,
+            true
           );
 
           saveAllowedPackage(
@@ -437,40 +701,179 @@ Mode: ${BOT_MODE}`
             alias
           );
 
-          return bot.sendMessage(
-            chatId,
-            `Package installed and allowed.
+          await status.finish(
+            `Package Installation
 
-• Package: ${pkg}
-• Alias: ${alias || pkg}
-Restart the bot to activate.`
+Package: ${pkg}
+Alias: ${alias || pkg}
+
+Status: Completed
+
+Package installed and allowed successfully.
+
+Restart the bot to activate the package.`
           );
-        }
 
-        if (cmd === "/remove") {
-          await execa(
+          return;
+
+        } catch (err) {
+          console.error(
+            "[PACKAGE INSTALL]",
+            err
+          );
+
+          await status.finish(
+            `Package Installation
+
+Package: ${pkg}
+Alias: ${alias || pkg}
+
+Status: Failed
+
+Error:
+${err.message}`
+          );
+
+          return;
+        }
+      }
+
+      /*
+       * ==================================================
+       * REMOVE
+       * ==================================================
+       */
+
+      if (cmd === "/remove") {
+        try {
+          await status.update(
+            `Package Removal
+
+Package: ${pkg}
+
+Status: Preparing...`,
+            true
+          );
+
+          await status.update(
+            `Package Removal
+
+Package: ${pkg}
+
+Status: Removing package...`,
+            true
+          );
+
+          const npmProcess = execa(
             "npm",
             ["remove", pkg],
             {
-              stdio: "ignore",
+              stdout: "pipe",
+              stderr: "pipe",
             }
+          );
+
+          let output = "";
+
+          if (npmProcess.stdout) {
+            npmProcess.stdout.on(
+              "data",
+              async (chunk) => {
+                output += chunk.toString();
+
+                const cleanOutput =
+                  cleanPackageOutput(output);
+
+                if (!cleanOutput) {
+                  return;
+                }
+
+                await status.update(
+                  `Package Removal
+
+Package: ${pkg}
+
+Status: Removing...
+
+${cleanOutput}`
+                );
+              }
+            );
+          }
+
+          if (npmProcess.stderr) {
+            npmProcess.stderr.on(
+              "data",
+              async (chunk) => {
+                output += chunk.toString();
+
+                const cleanOutput =
+                  cleanPackageOutput(output);
+
+                if (!cleanOutput) {
+                  return;
+                }
+
+                await status.update(
+                  `Package Removal
+
+Package: ${pkg}
+
+Status: Removing...
+
+${cleanOutput}`
+                );
+              }
+            );
+          }
+
+          await npmProcess;
+
+          await status.update(
+            `Package Removal
+
+Package: ${pkg}
+
+Status: Package removed successfully.
+Status: Updating allowlist...`,
+            true
           );
 
           removeAllowedPackage(pkg);
 
-          return bot.sendMessage(
-            chatId,
-            `Package removed: ${pkg}
-Restart the bot to apply changes.`
-          );
-        }
-      } catch (err) {
-        console.error(err);
+          await status.finish(
+            `Package Removal
 
-        return bot.sendMessage(
-          chatId,
-          `Package operation failed:\n${err.message}`
-        );
+Package: ${pkg}
+
+Status: Completed
+
+Package removed successfully.
+
+Restart the bot to apply the changes.`
+          );
+
+          return;
+
+        } catch (err) {
+          console.error(
+            "[PACKAGE REMOVE]",
+            err
+          );
+
+          await status.finish(
+            `Package Removal
+
+Package: ${pkg}
+
+Status: Failed
+
+Error:
+${err.message}`
+          );
+
+          return;
+        }
       }
     }
 
