@@ -22,6 +22,8 @@ function createContext(extraGlobals = {}) {
     RegExp,
     Promise,
 
+    Buffer,
+
     // allowed packages (aliased)
     ...injectedPackages,
 
