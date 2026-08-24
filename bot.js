@@ -152,6 +152,7 @@ async function executeCode(code, msg) {
 
   const exec = Promise.race([
     runJS(code, {
+      isAdmin,
       globals: isAdmin
         ? {
             bot,
